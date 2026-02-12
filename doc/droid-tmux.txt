@@ -1,0 +1,79 @@
+*droid-tmux.nvim* droid-tmux.nvim
+
+Author: asylcreek
+GitHub: https://github.com/asylcreek
+
+==============================================================================
+INTRODUCTION                                                 *droid-tmux-intro*
+
+droid-tmux.nvim sends prompts and editor context from Neovim to a Droid CLI
+running in a tmux pane.
+
+==============================================================================
+SETUP                                                         *droid-tmux-setup*
+
+>lua
+  require("droid_tmux").setup({
+    submit_key = "C-m",
+    keymaps = {
+      ask = "<leader>aa",
+      focus = "<leader>af",
+      visual = "<leader>av",
+      line = "<leader>al",
+      prompt = "<leader>ap",
+      diff = "<leader>ad",
+      diagnostics = "<leader>ax",
+      diagnostics_all = "<leader>aX",
+      quickfix = "<leader>aq",
+    },
+  })
+<
+
+==============================================================================
+COMMANDS                                                   *droid-tmux-commands*
+
+:DroidAsk [message]
+  Send a free-form message. Without args, opens |vim.ui.input()|.
+
+:DroidPrompt [template]
+  Choose a built-in template, or send an explicit template.
+
+:DroidFocus
+  Focus resolved Droid pane in tmux.
+
+:DroidPickPane
+  Pick a pane explicitly from all tmux panes.
+
+:DroidSendBuffer [message]
+  Send current file path, plus optional message.
+
+:DroidSendLine [message]
+  Send current line with file+line metadata.
+
+:[range]DroidSendLines [message]
+  Send line range with file+range metadata.
+
+:DroidSendDiff [message]
+  Send unstaged diff for current file.
+
+:DroidSendDiagnostics [message]
+  Send diagnostics for current buffer.
+
+:DroidSendDiagnosticsAll [message]
+  Send diagnostics across loaded buffers.
+
+:DroidSendQuickfix [message]
+  Send quickfix list.
+
+==============================================================================
+PROMPTS                                                     *droid-tmux-prompts*
+
+Prompt templates support these variables:
+  {file}
+  {diagnostics}
+  {diagnostics_all}
+  {quickfix}
+  {diff}
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

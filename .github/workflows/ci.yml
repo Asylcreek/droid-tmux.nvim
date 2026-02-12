@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Lua
+        uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: "5.1"
+
+      - name: Setup LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Install linters
+        run: |
+          luarocks install luacheck
+          luarocks install stylua
+
+      - name: Run stylua
+        run: stylua --check .
+
+      - name: Run luacheck
+        run: luacheck lua plugin
+
+  nvim-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Smoke test
+        run: |
+          nvim --headless -u NONE -i NONE \
+            '+set rtp+=$PWD' \
+            '+lua require("droid_tmux").setup({})' \
+            '+lua print(vim.fn.exists(":DroidAsk"), vim.fn.exists(":DroidSendLines"), vim.fn.exists(":DroidFocus"))' \
+            '+qa'

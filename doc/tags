@@ -1,0 +1,5 @@
+droid-tmux-commands	droid-tmux.txt	/*droid-tmux-commands*
+droid-tmux-intro	droid-tmux.txt	/*droid-tmux-intro*
+droid-tmux-prompts	droid-tmux.txt	/*droid-tmux-prompts*
+droid-tmux-setup	droid-tmux.txt	/*droid-tmux-setup*
+droid-tmux.nvim	droid-tmux.txt	/*droid-tmux.nvim*
