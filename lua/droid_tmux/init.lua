@@ -16,8 +16,7 @@ local defaults = {
 }
 
 local config = vim.deepcopy(defaults)
-local pane_format =
-  "#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}\t"
+local pane_format = "#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}\t"
   .. "#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"
 
 local function run(cmd, input)
