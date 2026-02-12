@@ -22,7 +22,11 @@ jobs:
       - name: Install linters
         run: |
           luarocks install luacheck
-          luarocks install stylua
+
+      - name: Setup stylua
+        uses: taiki-e/install-action@v2
+        with:
+          tool: stylua
 
       - name: Run stylua
         run: stylua --check .
