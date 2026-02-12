@@ -16,6 +16,9 @@ local defaults = {
 }
 
 local config = vim.deepcopy(defaults)
+local pane_format =
+  "#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}\t"
+  .. "#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"
 
 local function run(cmd, input)
   local res = vim.system(cmd, { text = true, stdin = input }):wait()
@@ -65,7 +68,7 @@ local function list_panes_all()
     "list-panes",
     "-a",
     "-F",
-    "#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_command}\t#{pane_title}\t#{pane_current_path}",
+    pane_format,
   })
   if not out then
     return nil, err
@@ -92,7 +95,7 @@ local function list_panes_current_window()
   local out, err = tmux({
     "list-panes",
     "-F",
-    "#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_command}\t#{pane_title}\t#{pane_current_path}",
+    pane_format,
   })
   if not out then
     return nil, err
