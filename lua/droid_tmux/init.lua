@@ -22,6 +22,12 @@ local defaults = {
 local config = vim.deepcopy(defaults)
 local tmux_client = tmux_mod.new({ vim = vim })
 local context_client = context_mod.new({ vim = vim })
+local last_send = {
+  ok = nil,
+  err = nil,
+  pane = nil,
+  size = 0,
+}
 
 local function build_single_line_message(message)
   local msg = message and vim.trim(message) or ""
@@ -79,6 +85,12 @@ function M.send(text)
 
   local pane = tmux_client:resolve_droid_pane()
   if not pane then
+    last_send = {
+      ok = false,
+      err = "Could not resolve Droid pane.",
+      pane = nil,
+      size = #text,
+    }
     return
   end
 
@@ -87,8 +99,44 @@ function M.send(text)
     submit_delay_ms = config.submit_delay_ms,
   })
   if not ok then
+    last_send = {
+      ok = false,
+      err = err or "tmux send failed.",
+      pane = pane,
+      size = #text,
+    }
     vim.notify(err or "tmux send failed.", vim.log.levels.ERROR)
+    return
   end
+
+  last_send = {
+    ok = true,
+    err = nil,
+    pane = pane,
+    size = #text,
+  }
+end
+
+function M.status()
+  local pane = tmux_client:resolve_droid_pane() or "[unresolved]"
+  local send_state
+  if last_send.ok == nil then
+    send_state = "none"
+  elseif last_send.ok then
+    send_state = "ok"
+  else
+    send_state = "error: " .. (last_send.err or "unknown")
+  end
+
+  local lines = {
+    "droid-tmux status",
+    "pane: " .. pane,
+    "submit_key: " .. tostring(config.submit_key),
+    "submit_delay_ms: " .. tostring(config.submit_delay_ms),
+    "last_send: " .. send_state,
+    "last_send_size: " .. tostring(last_send.size or 0),
+  }
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
 function M.ask(message)
@@ -255,8 +303,13 @@ end
 
 function M.setup(opts)
   config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
-  tmux_client = tmux_mod.new({ vim = vim })
-  context_client = context_mod.new({ vim = vim })
+  if opts and opts._clients then
+    tmux_client = opts._clients.tmux or tmux_mod.new({ vim = vim })
+    context_client = opts._clients.context or context_mod.new({ vim = vim })
+  else
+    tmux_client = tmux_mod.new({ vim = vim })
+    context_client = context_mod.new({ vim = vim })
+  end
 
   create_user_command("DroidPickPane", function()
     M.pick_pane()
@@ -264,6 +317,10 @@ function M.setup(opts)
 
   create_user_command("DroidFocus", function()
     M.focus()
+  end, {})
+
+  create_user_command("DroidStatus", function()
+    M.status()
   end, {})
 
   create_user_command("DroidAsk", function(c)

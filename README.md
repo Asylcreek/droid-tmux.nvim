@@ -116,6 +116,7 @@ require("droid_tmux").setup({
 - `:DroidAsk [message]`
 - `:DroidPrompt [template]`
 - `:DroidFocus`
+- `:DroidStatus`
 - `:DroidPickPane`
 - `:DroidSendBuffer [message]`
 - `:DroidSendLine [message]`

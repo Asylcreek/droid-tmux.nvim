@@ -42,6 +42,9 @@ COMMANDS                                                   *droid-tmux-commands*
 :DroidFocus
   Focus resolved Droid pane in tmux.
 
+:DroidStatus
+  Show pane resolution and last-send status.
+
 :DroidPickPane
   Pick a pane explicitly from all tmux panes.
 
