@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project uses Semantic Versioning.
 
+## [0.1.1] - 2026-02-13
+
+### Changed
+- `:DroidSendDiagnosticsAll` now skips gitignored files and reports diagnostics from loaded non-gitignored buffers only.
+
 ## [0.1.0] - 2026-02-12
 
 ### Added

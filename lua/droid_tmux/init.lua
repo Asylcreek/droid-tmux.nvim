@@ -235,6 +235,26 @@ local function get_current_diff()
   return out, nil
 end
 
+local function is_git_ignored(path)
+  if path == "" then
+    return false
+  end
+
+  local dir = vim.fs.dirname(path)
+  if not dir or dir == "" then
+    return false
+  end
+
+  local code = run({ "git", "-C", dir, "check-ignore", "-q", "--", path })
+  if code == 0 then
+    return true
+  end
+  if code == 1 then
+    return false
+  end
+  return false
+end
+
 local function format_diagnostics(diags, limit)
   if #diags == 0 then
     return ""
@@ -303,12 +323,16 @@ local function get_context_value(name)
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_is_loaded(buf) then
         local path = vim.api.nvim_buf_get_name(buf)
+        if is_git_ignored(path) then
+          goto continue
+        end
         local d = vim.diagnostic.get(buf)
         if #d > 0 then
           table.insert(parts, "File: " .. path)
           table.insert(parts, format_diagnostics(d, 80))
         end
       end
+      ::continue::
     end
     return table.concat(parts, "\n\n")
   end
@@ -512,7 +536,7 @@ end
 function M.send_diagnostics_all(message)
   local body = get_context_value("diagnostics_all")
   if body == "" then
-    vim.notify("No diagnostics in loaded buffers.", vim.log.levels.INFO)
+    vim.notify("No diagnostics in loaded non-gitignored buffers.", vim.log.levels.INFO)
     return
   end
 

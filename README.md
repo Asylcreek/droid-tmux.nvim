@@ -121,7 +121,7 @@ require("droid_tmux").setup({
 - `:[range]DroidSendLines [message]`
 - `:DroidSendDiff [message]`
 - `:DroidSendDiagnostics [message]`
-- `:DroidSendDiagnosticsAll [message]`
+- `:DroidSendDiagnosticsAll [message]` (loaded non-gitignored buffers only)
 - `:DroidSendQuickfix [message]`
 
 ## Prompt variables

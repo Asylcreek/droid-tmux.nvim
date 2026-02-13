@@ -60,7 +60,7 @@ COMMANDS                                                   *droid-tmux-commands*
   Send diagnostics for current buffer.
 
 :DroidSendDiagnosticsAll [message]
-  Send diagnostics across loaded buffers.
+  Send diagnostics across loaded non-gitignored buffers.
 
 :DroidSendQuickfix [message]
   Send quickfix list.
