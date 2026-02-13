@@ -28,6 +28,17 @@ to read agent output.
 
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
+At minimum, pass `opts = {}` so lazy.nvim calls `setup()`:
+
+```lua
+{
+  "asylcreek/droid-tmux.nvim",
+  opts = {},
+}
+```
+
+With custom options:
+
 ```lua
 {
   "asylcreek/droid-tmux.nvim",
@@ -46,6 +57,14 @@ to read agent output.
     },
   },
 }
+```
+
+### Without lazy.nvim
+
+Make sure you call `setup()` yourself:
+
+```lua
+require("droid_tmux").setup({})
 ```
 
 To pin a version in lazy.nvim:
