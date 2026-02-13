@@ -119,6 +119,10 @@ end
 
 function M.status()
   local pane = tmux_client:resolve_droid_pane() or "[unresolved]"
+  local source = "unknown"
+  if tmux_client.get_last_resolution_source then
+    source = tmux_client:get_last_resolution_source() or "unknown"
+  end
   local send_state
   if last_send.ok == nil then
     send_state = "none"
@@ -131,6 +135,7 @@ function M.status()
   local lines = {
     "droid-tmux status",
     "pane: " .. pane,
+    "pane_source: " .. source,
     "submit_key: " .. tostring(config.submit_key),
     "submit_delay_ms: " .. tostring(config.submit_delay_ms),
     "last_send: " .. send_state,

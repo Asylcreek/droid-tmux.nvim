@@ -18,6 +18,10 @@ local function new_fake_tmux()
     return "%1"
   end
 
+  function client:get_last_resolution_source()
+    return "saved"
+  end
+
   function client:send_text(pane, text, opts)
     table.insert(calls, {
       pane = pane,
@@ -162,6 +166,27 @@ local function test_droid_status_command_registered()
   assert(vim.fn.exists(":DroidStatus") == 2, "expected :DroidStatus command")
 end
 
+local function test_droid_status_reports_pane_source()
+  local tmux = new_fake_tmux()
+  local context = new_fake_context()
+  local plugin = fresh_plugin(tmux, context)
+  local original_notify = vim.notify
+  local message = nil
+
+  vim.notify = function(msg)
+    message = msg
+  end
+
+  local ok, err = pcall(function()
+    plugin.status()
+  end)
+  vim.notify = original_notify
+
+  assert(ok, "expected status call to succeed: " .. tostring(err))
+  assert(type(message) == "string", "expected status message")
+  assert(message:find("pane_source: saved", 1, true), "expected pane source in status output")
+end
+
 return {
   test_send_line_uses_common_send_pipeline = test_send_line_uses_common_send_pipeline,
   test_send_lines_uses_common_send_pipeline = test_send_lines_uses_common_send_pipeline,
@@ -169,4 +194,5 @@ return {
   test_prompt_expansion_uses_common_send_pipeline = test_prompt_expansion_uses_common_send_pipeline,
   test_send_diagnostics_all_uses_common_send_pipeline = test_send_diagnostics_all_uses_common_send_pipeline,
   test_droid_status_command_registered = test_droid_status_command_registered,
+  test_droid_status_reports_pane_source = test_droid_status_reports_pane_source,
 }

@@ -39,6 +39,7 @@ function M.new(deps)
   end
 
   local self = {}
+  local last_resolution_source = "none"
 
   function self:in_tmux()
     local env = deps.env or vim_ref.env or {}
@@ -191,23 +192,31 @@ function M.new(deps)
   function self:resolve_droid_pane()
     local saved = self:get_saved_pane()
     if saved and self:pane_exists_in_current_window(saved) then
+      last_resolution_source = "saved"
       return saved
     end
 
     local by_cwd = self:detect_droid_pane_by_cwd()
     if by_cwd then
       self:save_pane(by_cwd)
+      last_resolution_source = "cwd"
       return by_cwd
     end
 
     local detected = self:detect_droid_pane_in_current_window()
     if detected then
       self:save_pane(detected)
+      last_resolution_source = "detect"
       return detected
     end
 
+    last_resolution_source = "none"
     notify("Could not resolve Droid pane in current tmux window.", vim_ref.log.levels.ERROR)
     return nil
+  end
+
+  function self:get_last_resolution_source()
+    return last_resolution_source
   end
 
   function self:focus()
