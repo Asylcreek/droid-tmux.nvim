@@ -43,7 +43,8 @@ With custom options:
 {
   "asylcreek/droid-tmux.nvim",
   opts = {
-    submit_key = "C-m",
+    submit_key = "Enter",
+    submit_delay_ms = 120,
     keymaps = {
       ask = "<leader>aa",
       focus = "<leader>af",

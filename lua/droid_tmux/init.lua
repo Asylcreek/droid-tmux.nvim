@@ -4,7 +4,8 @@ local context_mod = require("droid_tmux.context")
 local tmux_mod = require("droid_tmux.tmux")
 
 local defaults = {
-  submit_key = "C-m",
+  submit_key = "Enter",
+  submit_delay_ms = 120,
   keymaps = {
     ask = "<leader>aa",
     focus = "<leader>af",
@@ -81,24 +82,13 @@ function M.send(text)
     return
   end
 
-  text = text:gsub("\r\n", "\n")
-  local lines = vim.split(text, "\n", { plain = true })
-
-  for i, line in ipairs(lines) do
-    if line ~= "" then
-      local ok, err = tmux_client:exec({ "send-keys", "-t", pane, "-l", "--", line })
-      if not ok then
-        vim.notify(err or "tmux send-keys failed.", vim.log.levels.ERROR)
-        return
-      end
-    end
-
-    if i < #lines then
-      tmux_client:exec({ "send-keys", "-t", pane, "\\", "C-m" })
-    end
+  local ok, err = tmux_client:send_text(pane, text, {
+    submit_key = config.submit_key,
+    submit_delay_ms = config.submit_delay_ms,
+  })
+  if not ok then
+    vim.notify(err or "tmux send failed.", vim.log.levels.ERROR)
   end
-
-  tmux_client:exec({ "send-keys", "-t", pane, config.submit_key })
 end
 
 function M.ask(message)

@@ -231,6 +231,33 @@ function M.new(deps)
     self:exec({ "select-pane", "-t", pane })
   end
 
+  function self:send_text(pane, text, opts)
+    opts = opts or {}
+    local payload = (text or ""):gsub("\r\n", "\n")
+    local ok, err = self:exec({ "load-buffer", "-" }, payload)
+    if not ok then
+      return nil, err
+    end
+
+    ok, err = self:exec({ "paste-buffer", "-p", "-d", "-t", pane })
+    if not ok then
+      return nil, err
+    end
+
+    if opts.submit_delay_ms and opts.submit_delay_ms > 0 and vim_ref.wait then
+      vim_ref.wait(opts.submit_delay_ms)
+    end
+
+    if opts.submit_key and opts.submit_key ~= "" then
+      ok, err = self:exec({ "send-keys", "-t", pane, opts.submit_key })
+      if not ok then
+        return nil, err
+      end
+    end
+
+    return true, nil
+  end
+
   return self
 end
 

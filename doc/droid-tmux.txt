@@ -14,7 +14,8 @@ SETUP                                                         *droid-tmux-setup*
 
 >lua
   require("droid_tmux").setup({
-    submit_key = "C-m",
+    submit_key = "Enter",
+    submit_delay_ms = 120,
     keymaps = {
       ask = "<leader>aa",
       focus = "<leader>af",
