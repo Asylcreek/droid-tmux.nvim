@@ -53,3 +53,10 @@ jobs:
             '+lua require("droid_tmux").setup({})' \
             '+lua print(vim.fn.exists(":DroidAsk"), vim.fn.exists(":DroidSendLines"), vim.fn.exists(":DroidFocus"))' \
             '+qa'
+
+      - name: Unit tests
+        run: |
+          nvim --headless -u NONE -i NONE \
+            '+set rtp+=$PWD' \
+            '+lua require("tests.run").run()' \
+            '+qa'

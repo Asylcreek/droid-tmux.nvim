@@ -1,5 +1,8 @@
 local M = {}
 
+local context_mod = require("droid_tmux.context")
+local tmux_mod = require("droid_tmux.tmux")
+
 local defaults = {
   submit_key = "C-m",
   keymaps = {
@@ -16,338 +19,12 @@ local defaults = {
 }
 
 local config = vim.deepcopy(defaults)
-local pane_format = "#{pane_id}\t#{session_name}:#{window_index}.#{pane_index}\t"
-  .. "#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"
-
-local function run(cmd, input)
-  local res = vim.system(cmd, { text = true, stdin = input }):wait()
-  return res.code, res.stdout or "", res.stderr or ""
-end
-
-local function in_tmux()
-  return vim.env.TMUX and vim.env.TMUX ~= ""
-end
-
-local function tmux(args, input)
-  if not in_tmux() then
-    return nil, "Not running inside tmux."
-  end
-  local cmd = { "tmux" }
-  vim.list_extend(cmd, args)
-  local code, out, err = run(cmd, input)
-  if code ~= 0 then
-    return nil, (err ~= "" and err or out)
-  end
-  return vim.trim(out), nil
-end
-
-local function starts_with(s, prefix)
-  return type(s) == "string" and type(prefix) == "string" and s:sub(1, #prefix) == prefix
-end
+local tmux_client = tmux_mod.new({ vim = vim })
+local context_client = context_mod.new({ vim = vim })
 
 local function build_single_line_message(message)
   local msg = message and vim.trim(message) or ""
   return msg:gsub("%s+", " ")
-end
-
-local function get_saved_pane()
-  local out = tmux({ "show-options", "-gqv", "@droid_pane" })
-  if not out or out == "" then
-    return nil
-  end
-  return out
-end
-
-local function save_pane(pane_id)
-  tmux({ "set", "-g", "@droid_pane", pane_id })
-end
-
-local function list_panes_all()
-  local out, err = tmux({
-    "list-panes",
-    "-a",
-    "-F",
-    pane_format,
-  })
-  if not out then
-    return nil, err
-  end
-
-  local panes = {}
-  for _, line in ipairs(vim.split(out, "\n", { trimempty = true })) do
-    local pane_id, target, cmd, title, path = line:match("^(%%[%d]+)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t(.*)$")
-    if pane_id then
-      table.insert(panes, {
-        pane_id = pane_id,
-        target = target,
-        cmd = cmd,
-        title = title,
-        path = path,
-        label = string.format("%s  [%s]  cmd=%s  title=%s", pane_id, target, cmd, title),
-      })
-    end
-  end
-  return panes, nil
-end
-
-local function list_panes_current_window()
-  local out, err = tmux({
-    "list-panes",
-    "-F",
-    pane_format,
-  })
-  if not out then
-    return nil, err
-  end
-
-  local panes = {}
-  for _, line in ipairs(vim.split(out, "\n", { trimempty = true })) do
-    local pane_id, target, cmd, title, path = line:match("^(%%[%d]+)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t(.*)$")
-    if pane_id then
-      table.insert(panes, {
-        pane_id = pane_id,
-        target = target,
-        cmd = cmd,
-        title = title,
-        path = path,
-        label = string.format("%s  [%s]  cmd=%s  title=%s", pane_id, target, cmd, title),
-      })
-    end
-  end
-  return panes, nil
-end
-
-local function pane_exists_in_current_window(pane_id)
-  local panes = list_panes_current_window()
-  if not panes then
-    return false
-  end
-  for _, pane in ipairs(panes) do
-    if pane.pane_id == pane_id then
-      return true
-    end
-  end
-  return false
-end
-
-local function detect_droid_pane_in_current_window()
-  local out, err = tmux({
-    "list-panes",
-    "-F",
-    "#{pane_id}\t#{pane_current_command}\t#{pane_title}",
-  })
-  if not out then
-    return nil, err
-  end
-
-  local lines = vim.split(out, "\n", { trimempty = true })
-  local title_match = nil
-
-  for _, line in ipairs(lines) do
-    local pane_id, cmd, title = line:match("^(%%[%d]+)\t([^\t]*)\t(.*)$")
-    if pane_id then
-      if cmd == "droid" then
-        return pane_id, nil
-      end
-      local t = (title or ""):lower()
-      if t:find("droid", 1, true) then
-        title_match = title_match or pane_id
-      end
-    end
-  end
-
-  if title_match then
-    return title_match, nil
-  end
-
-  return nil, "No Droid pane found in current tmux window."
-end
-
-local function detect_droid_pane_by_cwd()
-  local panes, err = list_panes_current_window()
-  if not panes then
-    return nil, err
-  end
-
-  local cwd = vim.fn.getcwd()
-  local best = nil
-  local best_score = -1
-
-  for _, pane in ipairs(panes) do
-    local cmd = (pane.cmd or ""):lower()
-    local title = (pane.title or ""):lower()
-    local path = pane.path or ""
-    local is_droid = cmd == "droid" or title:find("droid", 1, true) ~= nil
-
-    if is_droid then
-      local score = 100
-      if path == cwd then
-        score = score + 60
-      elseif starts_with(cwd, path) then
-        score = score + 40
-      elseif starts_with(path, cwd) then
-        score = score + 30
-      end
-      if score > best_score then
-        best = pane
-        best_score = score
-      end
-    end
-  end
-
-  if best then
-    return best.pane_id, nil
-  end
-  return nil, "No Droid pane found by cwd."
-end
-
-local function resolve_droid_pane()
-  local saved = get_saved_pane()
-  if saved and pane_exists_in_current_window(saved) then
-    return saved
-  end
-
-  local by_cwd = detect_droid_pane_by_cwd()
-  if by_cwd then
-    save_pane(by_cwd)
-    return by_cwd
-  end
-
-  local detected = detect_droid_pane_in_current_window()
-  if detected then
-    save_pane(detected)
-    return detected
-  end
-
-  vim.notify("Could not resolve Droid pane in current tmux window.", vim.log.levels.ERROR)
-  return nil
-end
-
-local function get_current_diff()
-  local path = vim.fn.expand("%:p")
-  local code, out, err = run({ "git", "diff", "--", path })
-  if code ~= 0 then
-    return nil, (err ~= "" and err or out)
-  end
-  if vim.trim(out) == "" then
-    return nil, ""
-  end
-  return out, nil
-end
-
-local function is_git_ignored(path)
-  if path == "" then
-    return false
-  end
-
-  local dir = vim.fs.dirname(path)
-  if not dir or dir == "" then
-    return false
-  end
-
-  local code = run({ "git", "-C", dir, "check-ignore", "-q", "--", path })
-  if code == 0 then
-    return true
-  end
-  if code == 1 then
-    return false
-  end
-  return false
-end
-
-local function format_diagnostics(diags, limit)
-  if #diags == 0 then
-    return ""
-  end
-
-  local severity_map = {
-    [vim.diagnostic.severity.ERROR] = "ERROR",
-    [vim.diagnostic.severity.WARN] = "WARN",
-    [vim.diagnostic.severity.INFO] = "INFO",
-    [vim.diagnostic.severity.HINT] = "HINT",
-  }
-
-  local lines = {}
-  for i, d in ipairs(diags) do
-    if i > limit then
-      table.insert(lines, "... truncated ...")
-      break
-    end
-    local sev = severity_map[d.severity] or "UNKNOWN"
-    local lnum = (d.lnum or 0) + 1
-    local col = (d.col or 0) + 1
-    local source = d.source and (" source=" .. d.source) or ""
-    local code = d.code and (" code=" .. tostring(d.code)) or ""
-    local msg = (d.message or ""):gsub("\n", " ")
-    table.insert(lines, string.format("- [%s] %d:%d %s%s%s", sev, lnum, col, msg, source, code))
-  end
-  return table.concat(lines, "\n")
-end
-
-local function format_quickfix_items(limit)
-  local qf = vim.fn.getqflist({ items = 1 })
-  local items = qf.items or {}
-  if #items == 0 then
-    return ""
-  end
-
-  local lines = {}
-  for i, item in ipairs(items) do
-    if i > limit then
-      table.insert(lines, "... truncated ...")
-      break
-    end
-    local filename = item.filename
-    if (not filename or filename == "") and item.bufnr and item.bufnr > 0 then
-      filename = vim.api.nvim_buf_get_name(item.bufnr)
-    end
-    filename = filename or "[no-file]"
-    local lnum = item.lnum or 0
-    local col = item.col or 0
-    local text = (item.text or ""):gsub("\n", " ")
-    table.insert(lines, string.format("- %s:%d:%d %s", filename, lnum, col, text))
-  end
-
-  return table.concat(lines, "\n")
-end
-
-local function get_context_value(name)
-  if name == "file" then
-    return vim.fn.expand("%:p")
-  end
-  if name == "diagnostics" then
-    return format_diagnostics(vim.diagnostic.get(0), 80)
-  end
-  if name == "diagnostics_all" then
-    local parts = {}
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_loaded(buf) then
-        local path = vim.api.nvim_buf_get_name(buf)
-        if not is_git_ignored(path) then
-          local d = vim.diagnostic.get(buf)
-          if #d > 0 then
-            table.insert(parts, "File: " .. path)
-            table.insert(parts, format_diagnostics(d, 80))
-          end
-        end
-      end
-    end
-    return table.concat(parts, "\n\n")
-  end
-  if name == "quickfix" then
-    return format_quickfix_items(100)
-  end
-  if name == "diff" then
-    local diff = get_current_diff()
-    return diff or ""
-  end
-  return ""
-end
-
-local function expand_template(tpl)
-  return (tpl:gsub("{([%w_]+)}", function(key)
-    return get_context_value(key)
-  end))
 end
 
 local function map_key(mode, lhs, rhs, opts)
@@ -365,7 +42,7 @@ local function create_user_command(name, fn, opts)
 end
 
 function M.pick_pane()
-  local panes, err = list_panes_all()
+  local panes, err = tmux_client:list_panes_all()
   if not panes then
     vim.notify(err or "Could not list tmux panes.", vim.log.levels.ERROR)
     return
@@ -384,30 +61,13 @@ function M.pick_pane()
     if not choice then
       return
     end
-    save_pane(choice.pane_id)
+    tmux_client:save_pane(choice.pane_id)
     vim.notify("Set @droid_pane=" .. choice.pane_id, vim.log.levels.INFO)
   end)
 end
 
 function M.focus()
-  local pane = resolve_droid_pane()
-  if not pane then
-    return
-  end
-
-  local ok = tmux({ "select-pane", "-t", pane })
-  if ok then
-    return
-  end
-
-  local target, err = tmux({ "display-message", "-p", "-t", pane, "#{session_name}:#{window_index}" })
-  if not target then
-    vim.notify(err or "Could not locate target pane.", vim.log.levels.ERROR)
-    return
-  end
-
-  tmux({ "select-window", "-t", target })
-  tmux({ "select-pane", "-t", pane })
+  tmux_client:focus()
 end
 
 function M.send(text)
@@ -416,7 +76,7 @@ function M.send(text)
     return
   end
 
-  local pane = resolve_droid_pane()
+  local pane = tmux_client:resolve_droid_pane()
   if not pane then
     return
   end
@@ -426,7 +86,7 @@ function M.send(text)
 
   for i, line in ipairs(lines) do
     if line ~= "" then
-      local ok, err = tmux({ "send-keys", "-t", pane, "-l", "--", line })
+      local ok, err = tmux_client:exec({ "send-keys", "-t", pane, "-l", "--", line })
       if not ok then
         vim.notify(err or "tmux send-keys failed.", vim.log.levels.ERROR)
         return
@@ -434,11 +94,11 @@ function M.send(text)
     end
 
     if i < #lines then
-      tmux({ "send-keys", "-t", pane, "\\", "C-m" })
+      tmux_client:exec({ "send-keys", "-t", pane, "\\", "C-m" })
     end
   end
 
-  tmux({ "send-keys", "-t", pane, config.submit_key })
+  tmux_client:exec({ "send-keys", "-t", pane, config.submit_key })
 end
 
 function M.ask(message)
@@ -498,7 +158,7 @@ end
 
 function M.send_diff(message)
   local path = vim.fn.expand("%:p")
-  local out, err = get_current_diff()
+  local out, err = context_client:get_current_diff()
   if err then
     vim.notify(err, vim.log.levels.ERROR)
     return
@@ -516,7 +176,7 @@ end
 
 function M.send_diagnostics(message)
   local path = vim.fn.expand("%:p")
-  local body = format_diagnostics(vim.diagnostic.get(0), 80)
+  local body = context_client:format_diagnostics(vim.diagnostic.get(0), 80)
   if body == "" then
     vim.notify("No diagnostics in current buffer.", vim.log.levels.INFO)
     return
@@ -532,7 +192,7 @@ function M.send_diagnostics(message)
 end
 
 function M.send_diagnostics_all(message)
-  local body = get_context_value("diagnostics_all")
+  local body = context_client:get_context_value("diagnostics_all")
   if body == "" then
     vim.notify("No diagnostics in loaded non-gitignored buffers.", vim.log.levels.INFO)
     return
@@ -547,7 +207,7 @@ function M.send_diagnostics_all(message)
 end
 
 function M.send_quickfix(message)
-  local body = format_quickfix_items(100)
+  local body = context_client:format_quickfix_items(100)
   if body == "" then
     vim.notify("Quickfix list is empty.", vim.log.levels.INFO)
     return
@@ -563,7 +223,7 @@ end
 
 function M.prompt(template)
   if template and vim.trim(template) ~= "" then
-    M.send(expand_template(template))
+    M.send(context_client:expand_template(template))
     return
   end
 
@@ -599,12 +259,14 @@ function M.prompt(template)
     if not choice then
       return
     end
-    M.send(expand_template(choice.template))
+    M.send(context_client:expand_template(choice.template))
   end)
 end
 
 function M.setup(opts)
   config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
+  tmux_client = tmux_mod.new({ vim = vim })
+  context_client = context_mod.new({ vim = vim })
 
   create_user_command("DroidPickPane", function()
     M.pick_pane()

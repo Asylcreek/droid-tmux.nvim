@@ -137,6 +137,17 @@ require("droid_tmux").setup({
 - Auto-resolution is scoped to the current tmux window.
 - `DroidPickPane` is explicit and can target any pane.
 
+## Development
+
+Run headless unit tests:
+
+```bash
+nvim --headless -u NONE -i NONE \
+  '+set rtp+=$PWD' \
+  '+lua require("tests.run").run()' \
+  '+qa'
+```
+
 ## References
 
 - Factory Droid: [docs.factory.ai](https://docs.factory.ai)
