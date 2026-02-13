@@ -323,16 +323,14 @@ local function get_context_value(name)
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_is_loaded(buf) then
         local path = vim.api.nvim_buf_get_name(buf)
-        if is_git_ignored(path) then
-          goto continue
-        end
-        local d = vim.diagnostic.get(buf)
-        if #d > 0 then
-          table.insert(parts, "File: " .. path)
-          table.insert(parts, format_diagnostics(d, 80))
+        if not is_git_ignored(path) then
+          local d = vim.diagnostic.get(buf)
+          if #d > 0 then
+            table.insert(parts, "File: " .. path)
+            table.insert(parts, format_diagnostics(d, 80))
+          end
         end
       end
-      ::continue::
     end
     return table.concat(parts, "\n\n")
   end
