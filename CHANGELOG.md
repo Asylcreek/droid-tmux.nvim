@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project uses Semantic Versioning.
 
+## [0.1.2] - 2026-02-13
+
+### Fixed
+- Replaced Lua `goto` usage in diagnostics collection to keep CI linting/parsing compatible with Lua 5.1 tooling.
+
 ## [0.1.1] - 2026-02-13
 
 ### Changed
