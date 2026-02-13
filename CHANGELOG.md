@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project uses Semantic Versioning.
 
+## [0.2.0] - 2026-02-13
+
+### Added
+- `:DroidStatus` command with live pane resolution details and last-send status.
+- Integration tests for send entrypoints and status behavior.
+- Bracketed paste send path tests for multiline fidelity and submit timing.
+
+### Changed
+- Droid pane auto-resolution now uses live detection only in the current tmux window.
+- Detection now matches Droid by process command first, with pane title fallback for shell-wrapped Droid sessions.
+- Prompt submission defaults to `submit_key = "Enter"` with `submit_delay_ms = 120` to improve reliability after paste.
+
+### Removed
+- Removed `:DroidPickPane` command and related keymap/implementation paths.
+- Removed persisted pane selection (`@droid_pane`) behavior.
+
+### Fixed
+- Commands now consistently notify users when no Droid pane is available.
+- Stale pane failures (pane closed after resolution) now return explicit user-visible errors.
+- Focus and send flows now share consistent error handling and no longer fail silently.
+
 ## [0.1.2] - 2026-02-13
 
 ### Fixed
