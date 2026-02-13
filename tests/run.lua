@@ -2,6 +2,7 @@ local test_modules = {
   "tests.tmux_spec",
   "tests.context_spec",
   "tests.send_spec",
+  "tests.init_integration_spec",
 }
 
 local function run_case(mod_name, case_name, fn)
