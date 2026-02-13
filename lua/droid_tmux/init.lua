@@ -48,33 +48,11 @@ local function create_user_command(name, fn, opts)
   vim.api.nvim_create_user_command(name, fn, opts)
 end
 
-function M.pick_pane()
-  local panes, err = tmux_client:list_panes_all()
-  if not panes then
-    vim.notify(err or "Could not list tmux panes.", vim.log.levels.ERROR)
-    return
-  end
-  if #panes == 0 then
-    vim.notify("No tmux panes found.", vim.log.levels.WARN)
-    return
-  end
-
-  vim.ui.select(panes, {
-    prompt = "Select Droid pane",
-    format_item = function(item)
-      return item.label
-    end,
-  }, function(choice)
-    if not choice then
-      return
-    end
-    tmux_client:save_pane(choice.pane_id)
-    vim.notify("Set @droid_pane=" .. choice.pane_id, vim.log.levels.INFO)
-  end)
-end
-
 function M.focus()
-  tmux_client:focus()
+  local ok, err = tmux_client:focus()
+  if not ok then
+    vim.notify(err or "Could not focus Droid pane.", vim.log.levels.ERROR)
+  end
 end
 
 function M.send(text)
@@ -83,14 +61,15 @@ function M.send(text)
     return
   end
 
-  local pane = tmux_client:resolve_droid_pane()
+  local pane, resolve_err = tmux_client:resolve_droid_pane()
   if not pane then
     last_send = {
       ok = false,
-      err = "Could not resolve Droid pane.",
+      err = resolve_err or "Could not resolve Droid pane.",
       pane = nil,
       size = #text,
     }
+    vim.notify(resolve_err or "Could not resolve Droid pane.", vim.log.levels.ERROR)
     return
   end
 
@@ -316,10 +295,6 @@ function M.setup(opts)
     context_client = context_mod.new({ vim = vim })
   end
 
-  create_user_command("DroidPickPane", function()
-    M.pick_pane()
-  end, {})
-
   create_user_command("DroidFocus", function()
     M.focus()
   end, {})
@@ -421,9 +396,6 @@ function M.setup(opts)
     M.focus()
   end, { desc = "Droid: focus pane" })
 
-  map_key("n", km.pick_pane, function()
-    M.pick_pane()
-  end, { desc = "Droid: pick pane" })
 end
 
 return M

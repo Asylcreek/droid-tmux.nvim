@@ -117,7 +117,6 @@ require("droid_tmux").setup({
 - `:DroidPrompt [template]`
 - `:DroidFocus`
 - `:DroidStatus`
-- `:DroidPickPane`
 - `:DroidSendBuffer [message]`
 - `:DroidSendLine [message]`
 - `:[range]DroidSendLines [message]`
@@ -136,8 +135,7 @@ require("droid_tmux").setup({
 
 ## Notes
 
-- Auto-resolution is scoped to the current tmux window.
-- `DroidPickPane` is explicit and can target any pane.
+- Auto-resolution always uses live Droid process detection in the current tmux window.
 
 ## Development
 

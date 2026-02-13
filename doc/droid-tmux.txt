@@ -45,9 +45,6 @@ COMMANDS                                                   *droid-tmux-commands*
 :DroidStatus
   Show pane resolution and last-send status.
 
-:DroidPickPane
-  Pick a pane explicitly from all tmux panes.
-
 :DroidSendBuffer [message]
   Send current file path, plus optional message.
 
