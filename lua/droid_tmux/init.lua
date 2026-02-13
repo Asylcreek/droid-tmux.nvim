@@ -395,7 +395,6 @@ function M.setup(opts)
   map_key("n", km.focus, function()
     M.focus()
   end, { desc = "Droid: focus pane" })
-
 end
 
 return M

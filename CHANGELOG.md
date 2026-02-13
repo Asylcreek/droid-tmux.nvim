@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project uses Semantic Versioning.
 
+## [0.2.1] - 2026-02-13
+
+### Fixed
+- Applied formatting fixes required by `stylua --check` in CI.
+
 ## [0.2.0] - 2026-02-13
 
 ### Added

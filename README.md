@@ -139,13 +139,16 @@ require("droid_tmux").setup({
 
 ## Development
 
-Run headless unit tests:
+Run local CI checks:
 
 ```bash
-nvim --headless -u NONE -i NONE \
-  '+set rtp+=$PWD' \
-  '+lua require("tests.run").run()' \
-  '+qa'
+just check
+```
+
+Format Lua files:
+
+```bash
+just fix
 ```
 
 ## References

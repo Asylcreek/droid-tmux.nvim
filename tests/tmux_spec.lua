@@ -124,10 +124,7 @@ local function test_resolve_reports_when_no_droid_pane_found()
     err == "No Droid pane found in current tmux window. Start `droid` in a tmux pane, then try again.",
     "expected clear no-droid error"
   )
-  assert(
-    client:get_last_resolution_source() == "none",
-    "expected resolution source none"
-  )
+  assert(client:get_last_resolution_source() == "none", "expected resolution source none")
 end
 
 local function test_focus_reports_stale_droid_pane_when_closed()

@@ -44,16 +44,16 @@ function M.new(deps)
     end
   end
 
-  local self = {}
+  local client = {}
   local last_resolution_source = "none"
 
-  function self:in_tmux()
+  function client.in_tmux(_)
     local env = deps.env or vim_ref.env or {}
     return env.TMUX and env.TMUX ~= ""
   end
 
-  function self:exec(args, input)
-    if not self:in_tmux() then
+  function client.exec(_, args, input)
+    if not client:in_tmux() then
       return nil, "Not running inside tmux."
     end
     local cmd = { "tmux" }
@@ -67,7 +67,7 @@ function M.new(deps)
     return trim(out), nil
   end
 
-  function self:parse_panes(out)
+  function client.parse_panes(_, out)
     local panes = {}
     for _, line in ipairs(split_lines(out)) do
       local pane_id, cmd, title, path = line:match("^(%%[%d]+)\t([^\t]*)\t([^\t]*)\t(.*)$")
@@ -83,12 +83,12 @@ function M.new(deps)
     return panes
   end
 
-  function self:detect_droid_pane_by_cwd()
-    local out, err = self:exec({ "list-panes", "-F", pane_format })
+  function client.detect_droid_pane_by_cwd(_)
+    local out, err = client:exec({ "list-panes", "-F", pane_format })
     if not out then
       return nil, err
     end
-    local panes = self:parse_panes(out)
+    local panes = client:parse_panes(out)
 
     local cwd = getcwd()
     local best = nil
@@ -122,8 +122,8 @@ function M.new(deps)
     return nil, "No Droid pane found by cwd."
   end
 
-  function self:resolve_droid_pane()
-    local by_cwd = self:detect_droid_pane_by_cwd()
+  function client.resolve_droid_pane(_)
+    local by_cwd = client:detect_droid_pane_by_cwd()
     if by_cwd then
       last_resolution_source = "cwd"
       return by_cwd, nil
@@ -133,12 +133,12 @@ function M.new(deps)
     return nil, NO_DROID_ERR
   end
 
-  function self:get_last_resolution_source()
+  function client.get_last_resolution_source(_)
     return last_resolution_source
   end
 
-  function self:focus_pane(pane)
-    local ok, select_err = self:exec({ "select-pane", "-t", pane })
+  function client.focus_pane(_, pane)
+    local ok, select_err = client:exec({ "select-pane", "-t", pane })
     if ok then
       return true, nil
     end
@@ -146,7 +146,7 @@ function M.new(deps)
       return nil, STALE_DROID_ERR
     end
 
-    local target, err = self:exec({ "display-message", "-p", "-t", pane, "#{session_name}:#{window_index}" })
+    local target, err = client:exec({ "display-message", "-p", "-t", pane, "#{session_name}:#{window_index}" })
     if not target then
       if is_missing_pane_error(err) then
         return nil, STALE_DROID_ERR
@@ -154,7 +154,7 @@ function M.new(deps)
       return nil, err or "Could not locate target pane."
     end
 
-    ok, err = self:exec({ "select-window", "-t", target })
+    ok, err = client:exec({ "select-window", "-t", target })
     if not ok then
       if is_missing_pane_error(err) then
         return nil, STALE_DROID_ERR
@@ -162,7 +162,7 @@ function M.new(deps)
       return nil, err or "Could not select tmux window."
     end
 
-    ok, err = self:exec({ "select-pane", "-t", pane })
+    ok, err = client:exec({ "select-pane", "-t", pane })
     if not ok then
       if is_missing_pane_error(err) then
         return nil, STALE_DROID_ERR
@@ -173,24 +173,24 @@ function M.new(deps)
     return true, nil
   end
 
-  function self:focus()
-    local pane, resolve_err = self:resolve_droid_pane()
+  function client.focus(_)
+    local pane, resolve_err = client:resolve_droid_pane()
     if not pane then
       return nil, resolve_err or NO_DROID_ERR
     end
 
-    return self:focus_pane(pane)
+    return client:focus_pane(pane)
   end
 
-  function self:send_text(pane, text, opts)
+  function client.send_text(_, pane, text, opts)
     opts = opts or {}
     local payload = (text or ""):gsub("\r\n", "\n")
-    local ok, err = self:exec({ "load-buffer", "-" }, payload)
+    local ok, err = client:exec({ "load-buffer", "-" }, payload)
     if not ok then
       return nil, err
     end
 
-    ok, err = self:exec({ "paste-buffer", "-p", "-d", "-t", pane })
+    ok, err = client:exec({ "paste-buffer", "-p", "-d", "-t", pane })
     if not ok then
       if is_missing_pane_error(err) then
         return nil, STALE_DROID_ERR
@@ -203,7 +203,7 @@ function M.new(deps)
     end
 
     if opts.submit_key and opts.submit_key ~= "" then
-      ok, err = self:exec({ "send-keys", "-t", pane, opts.submit_key })
+      ok, err = client:exec({ "send-keys", "-t", pane, opts.submit_key })
       if not ok then
         if is_missing_pane_error(err) then
           return nil, STALE_DROID_ERR
@@ -215,7 +215,7 @@ function M.new(deps)
     return true, nil
   end
 
-  return self
+  return client
 end
 
 return M

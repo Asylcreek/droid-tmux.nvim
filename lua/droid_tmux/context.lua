@@ -19,9 +19,9 @@ function M.new(deps)
     end
   end
 
-  local self = {}
+  local client = {}
 
-  function self:get_current_diff(path)
+  function client.get_current_diff(_, path)
     local current_path = path or vim_ref.fn.expand("%:p")
     local code, out, err = run({ "git", "diff", "--", current_path })
     if code ~= 0 then
@@ -33,7 +33,7 @@ function M.new(deps)
     return out, nil
   end
 
-  function self:is_git_ignored(path)
+  function client.is_git_ignored(_, path)
     if path == "" then
       return false
     end
@@ -53,7 +53,7 @@ function M.new(deps)
     return false
   end
 
-  function self:format_diagnostics(diags, limit)
+  function client.format_diagnostics(_, diags, limit)
     if #diags == 0 then
       return ""
     end
@@ -82,7 +82,7 @@ function M.new(deps)
     return table.concat(lines, "\n")
   end
 
-  function self:format_quickfix_items(limit)
+  function client.format_quickfix_items(_, limit)
     local qf = vim_ref.fn.getqflist({ items = 1 })
     local items = qf.items or {}
     if #items == 0 then
@@ -109,23 +109,23 @@ function M.new(deps)
     return table.concat(lines, "\n")
   end
 
-  function self:get_context_value(name)
+  function client.get_context_value(_, name)
     if name == "file" then
       return vim_ref.fn.expand("%:p")
     end
     if name == "diagnostics" then
-      return self:format_diagnostics(vim_ref.diagnostic.get(0), 80)
+      return client:format_diagnostics(vim_ref.diagnostic.get(0), 80)
     end
     if name == "diagnostics_all" then
       local parts = {}
       for _, buf in ipairs(vim_ref.api.nvim_list_bufs()) do
         if vim_ref.api.nvim_buf_is_loaded(buf) then
           local path = vim_ref.api.nvim_buf_get_name(buf)
-          if not self:is_git_ignored(path) then
+          if not client:is_git_ignored(path) then
             local d = vim_ref.diagnostic.get(buf)
             if #d > 0 then
               table.insert(parts, "File: " .. path)
-              table.insert(parts, self:format_diagnostics(d, 80))
+              table.insert(parts, client:format_diagnostics(d, 80))
             end
           end
         end
@@ -133,22 +133,22 @@ function M.new(deps)
       return table.concat(parts, "\n\n")
     end
     if name == "quickfix" then
-      return self:format_quickfix_items(100)
+      return client:format_quickfix_items(100)
     end
     if name == "diff" then
-      local diff = self:get_current_diff()
+      local diff = client:get_current_diff()
       return diff or ""
     end
     return ""
   end
 
-  function self:expand_template(tpl)
+  function client.expand_template(_, tpl)
     return (tpl:gsub("{([%w_]+)}", function(key)
-      return self:get_context_value(key)
+      return client:get_context_value(key)
     end))
   end
 
-  return self
+  return client
 end
 
 return M
