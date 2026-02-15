@@ -13,7 +13,7 @@ to read agent output.
 ## Features
 
 - Uses an external tmux pane (no Neovim terminal required)
-- Auto-detects Droid pane in the current tmux window
+- Per-window pane pinning for deterministic sends/focus
 - Prompted sends for visual selections and current line
 - Context commands for diff, diagnostics, workspace diagnostics, and quickfix
 - Prompt templates with context variables
@@ -48,6 +48,7 @@ With custom options:
     keymaps = {
       ask = "<leader>aa",
       focus = "<leader>af",
+      pick_pane = "<leader>as",
       visual = "<leader>av",
       line = "<leader>al",
       prompt = "<leader>ap",
@@ -99,6 +100,7 @@ Example:
 require("droid_tmux").setup({
   keymaps = {
     ask = "<leader>aa",
+    pick_pane = "<leader>as",
     visual = "<leader>av",
     line = "<leader>al",
     prompt = "<leader>ap",
@@ -116,6 +118,7 @@ require("droid_tmux").setup({
 - `:DroidAsk [message]`
 - `:DroidPrompt [template]`
 - `:DroidFocus`
+- `:DroidPickPane [pane_id]`
 - `:DroidStatus`
 - `:DroidSendBuffer [message]`
 - `:DroidSendLine [message]`
@@ -135,7 +138,8 @@ require("droid_tmux").setup({
 
 ## Notes
 
-- Auto-resolution always uses live Droid process detection in the current tmux window.
+- Pane selection is persisted per tmux window via `:DroidPickPane`.
+- `:DroidSend*` and `:DroidFocus` automatically open the pane picker when no pane is pinned.
 
 ## Development
 

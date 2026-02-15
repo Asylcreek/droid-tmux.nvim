@@ -19,6 +19,7 @@ SETUP                                                         *droid-tmux-setup*
     keymaps = {
       ask = "<leader>aa",
       focus = "<leader>af",
+      pick_pane = "<leader>as",
       visual = "<leader>av",
       line = "<leader>al",
       prompt = "<leader>ap",
@@ -41,6 +42,10 @@ COMMANDS                                                   *droid-tmux-commands*
 
 :DroidFocus
   Focus resolved Droid pane in tmux.
+
+:DroidPickPane [pane_id]
+  Pick and persist a target pane for Droid sends/focus in the current tmux
+  window.
 
 :DroidStatus
   Show pane resolution and last-send status.
@@ -65,6 +70,9 @@ COMMANDS                                                   *droid-tmux-commands*
 
 :DroidSendQuickfix [message]
   Send quickfix list.
+
+When no pane is picked, :DroidFocus and :DroidSend* commands open the picker
+automatically.
 
 ==============================================================================
 PROMPTS                                                     *droid-tmux-prompts*

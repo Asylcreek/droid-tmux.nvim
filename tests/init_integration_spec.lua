@@ -5,13 +5,6 @@ local function new_fake_tmux(opts)
     calls = calls,
   }
 
-  function client:focus()
-    if cfg.focus_ok == false then
-      return nil, cfg.focus_err or "focus failed"
-    end
-    return true, nil
-  end
-
   function client:resolve_droid_pane()
     if cfg.resolve_ok == false then
       return nil, cfg.resolve_err or "resolve failed"
@@ -20,7 +13,31 @@ local function new_fake_tmux(opts)
   end
 
   function client:get_last_resolution_source()
-    return "cwd"
+    return "picked"
+  end
+
+  function client:list_panes()
+    return {
+      { pane_id = "%1", cmd = "zsh", title = "shell", path = "/tmp" },
+      { pane_id = "%2", cmd = "droid", title = "Droid", path = "/tmp" },
+    },
+      nil
+  end
+
+  function client:set_picked_pane(pane)
+    if cfg.pick_ok == false then
+      return nil, cfg.pick_err or "pick failed"
+    end
+    client.picked = pane
+    return pane, nil
+  end
+
+  function client:focus_pane(pane)
+    if cfg.focus_ok == false then
+      return nil, cfg.focus_err or "focus failed"
+    end
+    client.focused = pane
+    return true, nil
   end
 
   function client:send_text(pane, text, opts)
@@ -170,6 +187,23 @@ local function test_droid_status_command_registered()
   assert(vim.fn.exists(":DroidStatus") == 2, "expected :DroidStatus command")
 end
 
+local function test_droid_pick_pane_command_registered()
+  local tmux = new_fake_tmux()
+  local context = new_fake_context()
+  fresh_plugin(tmux, context)
+  assert(vim.fn.exists(":DroidPickPane") == 2, "expected :DroidPickPane command")
+end
+
+local function test_pick_pane_sets_target_from_arg()
+  local tmux = new_fake_tmux()
+  local context = new_fake_context()
+  local plugin = fresh_plugin(tmux, context)
+
+  plugin.pick_pane("%7")
+
+  assert(tmux.picked == "%7", "expected picked pane to be set from arg")
+end
+
 local function test_droid_status_reports_pane_source()
   local tmux = new_fake_tmux()
   local context = new_fake_context()
@@ -188,42 +222,40 @@ local function test_droid_status_reports_pane_source()
 
   assert(ok, "expected status call to succeed: " .. tostring(err))
   assert(type(message) == "string", "expected status message")
-  assert(message:find("pane_source: cwd", 1, true), "expected pane source in status output")
+  assert(message:find("pane_source: picked", 1, true), "expected pane source in status output")
 end
 
-local function test_focus_notifies_when_no_droid_pane()
+local function test_focus_opens_picker_when_unresolved_and_focuses_selected()
   local tmux = new_fake_tmux({
-    focus_ok = false,
-    focus_err = "No Droid pane found in current tmux window. Start `droid` in a tmux pane, then try again.",
+    resolve_ok = false,
+    resolve_err = "No Droid pane picked for this tmux window. Run `:DroidPickPane` to select one.",
   })
   local context = new_fake_context()
   local plugin = fresh_plugin(tmux, context)
-  local original_notify = vim.notify
-  local message = nil
+  local original_select = vim.ui.select
 
-  vim.notify = function(msg)
-    message = msg
+  vim.ui.select = function(items, _, on_choice)
+    on_choice(items[2])
   end
 
   local ok, err = pcall(function()
     plugin.focus()
   end)
-  vim.notify = original_notify
+  vim.ui.select = original_select
 
   assert(ok, "expected focus call to succeed: " .. tostring(err))
-  assert(type(message) == "string", "expected focus notification")
-  assert(message:find("No Droid pane found in current tmux window", 1, true), "expected no-droid focus message")
+  assert(tmux.picked == "%2", "expected selected pane to be persisted")
+  assert(tmux.focused == "%2", "expected selected pane to be focused")
 end
 
-local function test_send_line_notifies_when_no_droid_pane()
+local function test_send_line_opens_picker_when_unresolved()
   local tmux = new_fake_tmux({
     resolve_ok = false,
-    resolve_err = "No Droid pane found in current tmux window. Start `droid` in a tmux pane, then try again.",
+    resolve_err = "No Droid pane picked for this tmux window. Run `:DroidPickPane` to select one.",
   })
   local context = new_fake_context()
   local plugin = fresh_plugin(tmux, context)
-  local original_notify = vim.notify
-  local message = nil
+  local original_select = vim.ui.select
 
   local buf = vim.api.nvim_create_buf(true, true)
   vim.api.nvim_buf_set_name(buf, "/tmp/no_droid.lua")
@@ -231,19 +263,19 @@ local function test_send_line_notifies_when_no_droid_pane()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "one" })
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
 
-  vim.notify = function(msg)
-    message = msg
+  vim.ui.select = function(items, _, on_choice)
+    on_choice(items[2])
   end
 
   local ok, err = pcall(function()
     plugin.send_line("")
   end)
-  vim.notify = original_notify
+  vim.ui.select = original_select
 
   assert(ok, "expected send_line call to succeed: " .. tostring(err))
-  assert(type(message) == "string", "expected send notification")
-  assert(message:find("No Droid pane found in current tmux window", 1, true), "expected no-droid send message")
-  assert(#tmux.calls == 0, "expected no send_text call when pane unresolved")
+  assert(tmux.picked == "%2", "expected selected pane to be persisted")
+  assert(#tmux.calls == 1, "expected send_text call after pane selection")
+  assert(tmux.calls[1].pane == "%2", "expected send to selected pane")
 end
 
 return {
@@ -253,7 +285,9 @@ return {
   test_prompt_expansion_uses_common_send_pipeline = test_prompt_expansion_uses_common_send_pipeline,
   test_send_diagnostics_all_uses_common_send_pipeline = test_send_diagnostics_all_uses_common_send_pipeline,
   test_droid_status_command_registered = test_droid_status_command_registered,
+  test_droid_pick_pane_command_registered = test_droid_pick_pane_command_registered,
+  test_pick_pane_sets_target_from_arg = test_pick_pane_sets_target_from_arg,
   test_droid_status_reports_pane_source = test_droid_status_reports_pane_source,
-  test_focus_notifies_when_no_droid_pane = test_focus_notifies_when_no_droid_pane,
-  test_send_line_notifies_when_no_droid_pane = test_send_line_notifies_when_no_droid_pane,
+  test_focus_opens_picker_when_unresolved_and_focuses_selected = test_focus_opens_picker_when_unresolved_and_focuses_selected,
+  test_send_line_opens_picker_when_unresolved = test_send_line_opens_picker_when_unresolved,
 }

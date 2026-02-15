@@ -35,11 +35,15 @@ local function test_parse_panes()
   assert(panes[2].cmd == "zsh", "expected second pane command")
 end
 
-local function test_resolve_prefers_cwd_match()
+local function test_resolve_prefers_picked_pane()
   local stubs = {
+    ["tmux show-options -wqv @droid_pane"] = {
+      code = 0,
+      out = "%9\n",
+    },
     ["tmux list-panes -F #{pane_id}\t#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"] = {
       code = 0,
-      out = "%2\tdroid\tDroid\t/repo\n%7\tdroid\tDroid\t/other\n",
+      out = "%9\tzsh\tshell\t/repo\n",
     },
   }
 
@@ -47,21 +51,18 @@ local function test_resolve_prefers_cwd_match()
     vim = fake_vim(),
     env = { TMUX = "1" },
     run = make_runner(stubs),
-    getcwd = function()
-      return "/repo"
-    end,
   })
 
   local pane = client:resolve_droid_pane()
-  assert(pane == "%2", "expected cwd droid pane")
-  assert(client:get_last_resolution_source() == "cwd", "expected cwd source")
+  assert(pane == "%9", "expected picked pane to win")
+  assert(client:get_last_resolution_source() == "picked", "expected picked source")
 end
 
-local function test_resolve_matches_droid_without_cwd_match()
+local function test_resolve_reports_when_no_picked_pane_found()
   local stubs = {
-    ["tmux list-panes -F #{pane_id}\t#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"] = {
+    ["tmux show-options -wqv @droid_pane"] = {
       code = 0,
-      out = "%2\tzsh\tshell\t/repo\n%4\tdroid\twork\t/other\n",
+      out = "\n",
     },
   }
 
@@ -69,69 +70,77 @@ local function test_resolve_matches_droid_without_cwd_match()
     vim = fake_vim(),
     env = { TMUX = "1" },
     run = make_runner(stubs),
-    getcwd = function()
-      return "/repo"
-    end,
-  })
-
-  local pane = client:resolve_droid_pane()
-  assert(pane == "%4", "expected droid pane when cwd does not match")
-  assert(client:get_last_resolution_source() == "cwd", "expected cwd resolver source")
-end
-
-local function test_resolve_matches_droid_title_when_command_is_shell()
-  local stubs = {
-    ["tmux list-panes -F #{pane_id}\t#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"] = {
-      code = 0,
-      out = "%19\tzsh\tzsh\t/repo\n%20\tzsh\tt•:Droid\t/repo\n%84\tzsh\tt•:Droid\t/repo\n",
-    },
-  }
-
-  local client = tmux_mod.new({
-    vim = fake_vim(),
-    env = { TMUX = "1" },
-    run = make_runner(stubs),
-    getcwd = function()
-      return "/repo"
-    end,
-  })
-
-  local pane = client:resolve_droid_pane()
-  assert(pane == "%20", "expected first Droid-titled pane when command is shell")
-  assert(client:get_last_resolution_source() == "cwd", "expected cwd source via title fallback")
-end
-
-local function test_resolve_reports_when_no_droid_pane_found()
-  local stubs = {
-    ["tmux list-panes -F #{pane_id}\t#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"] = {
-      code = 0,
-      out = "%2\tzsh\tshell\t/repo\n%7\tbash\teditor\t/repo\n",
-    },
-  }
-
-  local client = tmux_mod.new({
-    vim = fake_vim(),
-    env = { TMUX = "1" },
-    run = make_runner(stubs),
-    getcwd = function()
-      return "/repo"
-    end,
   })
 
   local pane, err = client:resolve_droid_pane()
   assert(pane == nil, "expected unresolved pane")
   assert(
-    err == "No Droid pane found in current tmux window. Start `droid` in a tmux pane, then try again.",
-    "expected clear no-droid error"
+    err == "No Droid pane picked for this tmux window. Run `:DroidPickPane` to select one.",
+    "expected no-picked-pane error"
   )
+  assert(client:get_last_resolution_source() == "none", "expected resolution source none")
+end
+
+local function test_resolve_reports_when_picked_pane_is_stale()
+  local stubs = {
+    ["tmux show-options -wqv @droid_pane"] = {
+      code = 0,
+      out = "%9\n",
+    },
+    ["tmux list-panes -F #{pane_id}\t#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"] = {
+      code = 0,
+      out = "%2\tzsh\tshell\t/repo\n",
+    },
+    ["tmux set-option -wu @droid_pane"] = {
+      code = 0,
+      out = "",
+    },
+  }
+
+  local client = tmux_mod.new({
+    vim = fake_vim(),
+    env = { TMUX = "1" },
+    run = make_runner(stubs),
+  })
+
+  local pane, err = client:resolve_droid_pane()
+  assert(pane == nil, "expected unresolved pane")
+  assert(
+    err == "Picked Droid pane is no longer available in this tmux window. Run `:DroidPickPane` again.",
+    "expected stale picked pane error"
+  )
+  assert(client:get_last_resolution_source() == "none", "expected resolution source none")
+end
+
+local function test_resolve_reports_when_show_options_fails()
+  local stubs = {
+    ["tmux show-options -wqv @droid_pane"] = {
+      code = 1,
+      err = "tmux failed",
+    },
+  }
+
+  local client = tmux_mod.new({
+    vim = fake_vim(),
+    env = { TMUX = "1" },
+    run = make_runner(stubs),
+  })
+
+  local pane, err = client:resolve_droid_pane()
+  assert(pane == nil, "expected unresolved pane")
+  assert(err == "tmux failed", "expected tmux error to surface")
   assert(client:get_last_resolution_source() == "none", "expected resolution source none")
 end
 
 local function test_focus_reports_stale_droid_pane_when_closed()
   local stubs = {
+    ["tmux show-options -wqv @droid_pane"] = {
+      code = 0,
+      out = "%3\n",
+    },
     ["tmux list-panes -F #{pane_id}\t#{pane_current_command}\t#{pane_title}\t#{pane_current_path}"] = {
       code = 0,
-      out = "%3\tdroid\tDroid\t/repo\n",
+      out = "%3\tzsh\tshell\t/repo\n",
     },
     ["tmux select-pane -t %3"] = { code = 1, err = "can't find pane: %3" },
   }
@@ -140,15 +149,12 @@ local function test_focus_reports_stale_droid_pane_when_closed()
     vim = fake_vim(),
     env = { TMUX = "1" },
     run = make_runner(stubs),
-    getcwd = function()
-      return "/repo"
-    end,
   })
 
   local ok, err = client:focus()
   assert(ok == nil, "expected focus to fail")
   assert(
-    err == "Resolved Droid pane is no longer available. Start `droid` in a tmux pane, then try again.",
+    err == "Picked Droid pane is no longer available in this tmux window. Run `:DroidPickPane` again.",
     "expected stale pane focus error"
   )
 end
@@ -168,17 +174,17 @@ local function test_send_text_reports_stale_droid_pane_when_closed()
   local ok, err = client:send_text("%5", "payload", { submit_key = "Enter" })
   assert(ok == nil, "expected send failure")
   assert(
-    err == "Resolved Droid pane is no longer available. Start `droid` in a tmux pane, then try again.",
+    err == "Picked Droid pane is no longer available in this tmux window. Run `:DroidPickPane` again.",
     "expected stale pane send error"
   )
 end
 
 return {
   test_parse_panes = test_parse_panes,
-  test_resolve_prefers_cwd_match = test_resolve_prefers_cwd_match,
-  test_resolve_matches_droid_without_cwd_match = test_resolve_matches_droid_without_cwd_match,
-  test_resolve_matches_droid_title_when_command_is_shell = test_resolve_matches_droid_title_when_command_is_shell,
-  test_resolve_reports_when_no_droid_pane_found = test_resolve_reports_when_no_droid_pane_found,
+  test_resolve_prefers_picked_pane = test_resolve_prefers_picked_pane,
+  test_resolve_reports_when_no_picked_pane_found = test_resolve_reports_when_no_picked_pane_found,
+  test_resolve_reports_when_picked_pane_is_stale = test_resolve_reports_when_picked_pane_is_stale,
+  test_resolve_reports_when_show_options_fails = test_resolve_reports_when_show_options_fails,
   test_focus_reports_stale_droid_pane_when_closed = test_focus_reports_stale_droid_pane_when_closed,
   test_send_text_reports_stale_droid_pane_when_closed = test_send_text_reports_stale_droid_pane_when_closed,
 }

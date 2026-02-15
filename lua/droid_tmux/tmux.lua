@@ -17,12 +17,9 @@ local function split_lines(text)
   return lines
 end
 
-local function starts_with(s, prefix)
-  return type(s) == "string" and type(prefix) == "string" and s:sub(1, #prefix) == prefix
-end
-
-local NO_DROID_ERR = "No Droid pane found in current tmux window. Start `droid` in a tmux pane, then try again."
-local STALE_DROID_ERR = "Resolved Droid pane is no longer available. Start `droid` in a tmux pane, then try again."
+local NO_DROID_ERR = "No Droid pane picked for this tmux window. Run `:DroidPickPane` to select one."
+local STALE_DROID_ERR = "Picked Droid pane is no longer available in this tmux window. Run `:DroidPickPane` again."
+local PICKED_PANE_OPTION = "@droid_pane"
 
 local function is_missing_pane_error(err)
   local e = (err or ""):lower()
@@ -33,9 +30,6 @@ function M.new(deps)
   deps = deps or {}
   local vim_ref = deps.vim or vim
   local run = deps.run
-  local getcwd = deps.getcwd or function()
-    return vim_ref.fn.getcwd()
-  end
 
   if not run then
     run = function(cmd, input)
@@ -83,50 +77,88 @@ function M.new(deps)
     return panes
   end
 
-  function client.detect_droid_pane_by_cwd(_)
+  function client.list_panes(_)
     local out, err = client:exec({ "list-panes", "-F", pane_format })
     if not out then
       return nil, err
     end
-    local panes = client:parse_panes(out)
+    return client:parse_panes(out), nil
+  end
 
-    local cwd = getcwd()
-    local best = nil
-    local best_score = -1
+  function client.get_picked_pane(_)
+    local pane, err = client:exec({ "show-options", "-wqv", PICKED_PANE_OPTION })
+    if not pane then
+      return nil, err
+    end
+    pane = trim(pane)
+    if pane == "" then
+      return nil, nil
+    end
+    if pane:match("^%%[%d]+$") then
+      return pane, nil
+    end
+    return nil, nil
+  end
 
-    for _, pane in ipairs(panes) do
-      local cmd = (pane.cmd or ""):lower()
-      local title = (pane.title or ""):lower()
-      local path = pane.path or ""
-      local is_droid = cmd == "droid" or title:find("droid", 1, true) ~= nil
+  function client.set_picked_pane(_, pane)
+    local target = trim(pane or "")
+    if target == "" then
+      local current, current_err = client:exec({ "display-message", "-p", "#{pane_id}" })
+      if not current then
+        return nil, current_err or "Could not resolve current tmux pane."
+      end
+      target = trim(current)
+    end
+    if not target:match("^%%[%d]+$") then
+      return nil, "Pane id must look like `%1`."
+    end
+    local ok, err = client:exec({ "set-option", "-wq", PICKED_PANE_OPTION, target })
+    if not ok then
+      return nil, err or "Could not persist picked pane."
+    end
+    return target, nil
+  end
 
-      if is_droid then
-        local score = 100
-        if path == cwd then
-          score = score + 60
-        elseif starts_with(cwd, path) then
-          score = score + 40
-        elseif starts_with(path, cwd) then
-          score = score + 30
-        end
-        if score > best_score then
-          best = pane
-          best_score = score
-        end
+  function client.clear_picked_pane(_)
+    local ok, err = client:exec({ "set-option", "-wu", PICKED_PANE_OPTION })
+    if not ok then
+      return nil, err or "Could not clear picked pane."
+    end
+    return true, nil
+  end
+
+  function client.pane_exists(_, pane)
+    local panes, err = client:list_panes()
+    if not panes then
+      return nil, err
+    end
+    for _, item in ipairs(panes) do
+      if item.pane_id == pane then
+        return true, nil
       end
     end
-
-    if best then
-      return best.pane_id, nil
-    end
-    return nil, "No Droid pane found by cwd."
+    return false, nil
   end
 
   function client.resolve_droid_pane(_)
-    local by_cwd = client:detect_droid_pane_by_cwd()
-    if by_cwd then
-      last_resolution_source = "cwd"
-      return by_cwd, nil
+    local picked, picked_err = client:get_picked_pane()
+    if not picked and picked_err then
+      last_resolution_source = "none"
+      return nil, picked_err
+    end
+    if picked then
+      local exists, exists_err = client:pane_exists(picked)
+      if exists_err then
+        last_resolution_source = "none"
+        return nil, exists_err
+      end
+      if exists then
+        last_resolution_source = "picked"
+        return picked, nil
+      end
+      client:clear_picked_pane()
+      last_resolution_source = "none"
+      return nil, STALE_DROID_ERR
     end
 
     last_resolution_source = "none"

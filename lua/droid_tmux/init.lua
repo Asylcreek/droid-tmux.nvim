@@ -9,6 +9,7 @@ local defaults = {
   keymaps = {
     ask = "<leader>aa",
     focus = "<leader>af",
+    pick_pane = "<leader>as",
     visual = "<leader>av",
     line = "<leader>al",
     prompt = "<leader>ap",
@@ -49,10 +50,81 @@ local function create_user_command(name, fn, opts)
 end
 
 function M.focus()
-  local ok, err = tmux_client:focus()
-  if not ok then
-    vim.notify(err or "Could not focus Droid pane.", vim.log.levels.ERROR)
+  local pane, resolve_err = tmux_client:resolve_droid_pane()
+  if pane then
+    local ok, err = tmux_client:focus_pane(pane)
+    if not ok then
+      vim.notify(err or "Could not focus Droid pane.", vim.log.levels.ERROR)
+    end
+    return
   end
+
+  M.pick_pane("", function(picked)
+    if not picked then
+      if resolve_err then
+        vim.notify(resolve_err, vim.log.levels.ERROR)
+      end
+      return
+    end
+    local ok, err = tmux_client:focus_pane(picked)
+    if not ok then
+      vim.notify(err or "Could not focus Droid pane.", vim.log.levels.ERROR)
+    end
+  end)
+end
+
+function M.pick_pane(pane_arg, on_done)
+  local done = on_done or function() end
+  local arg = build_single_line_message(pane_arg)
+  if arg ~= "" then
+    local pane, err = tmux_client:set_picked_pane(arg)
+    if not pane then
+      vim.notify(err or "Could not pick tmux pane.", vim.log.levels.ERROR)
+      done(nil, err or "Could not pick tmux pane.")
+      return
+    end
+    vim.notify("Picked Droid pane: " .. pane, vim.log.levels.INFO)
+    done(pane, nil)
+    return
+  end
+
+  local panes, list_err = tmux_client:list_panes()
+  if not panes then
+    vim.notify(list_err or "Could not list tmux panes.", vim.log.levels.ERROR)
+    done(nil, list_err or "Could not list tmux panes.")
+    return
+  end
+  if #panes == 0 then
+    vim.notify("No tmux panes found in current window.", vim.log.levels.WARN)
+    done(nil, "No tmux panes found in current window.")
+    return
+  end
+
+  vim.ui.select(panes, {
+    prompt = "Pick Droid Pane",
+    format_item = function(item)
+      return string.format(
+        "%s  cmd=%s  title=%s  path=%s",
+        item.pane_id,
+        item.cmd or "",
+        item.title or "",
+        item.path or ""
+      )
+    end,
+  }, function(choice)
+    if not choice then
+      done(nil, nil)
+      return
+    end
+    local pane, err = tmux_client:set_picked_pane(choice.pane_id)
+    if not pane then
+      vim.notify(err or "Could not pick tmux pane.", vim.log.levels.ERROR)
+      done(nil, err or "Could not pick tmux pane.")
+      return
+    end
+    vim.notify("Picked Droid pane: " .. pane, vim.log.levels.INFO)
+    done(pane, nil)
+  end)
 end
 
 function M.send(text)
@@ -61,39 +133,50 @@ function M.send(text)
     return
   end
 
-  local pane, resolve_err = tmux_client:resolve_droid_pane()
-  if not pane then
-    last_send = {
-      ok = false,
-      err = resolve_err or "Could not resolve Droid pane.",
-      pane = nil,
-      size = #text,
-    }
-    vim.notify(resolve_err or "Could not resolve Droid pane.", vim.log.levels.ERROR)
-    return
-  end
+  local function send_to_pane(pane)
+    local ok, err = tmux_client:send_text(pane, text, {
+      submit_key = config.submit_key,
+      submit_delay_ms = config.submit_delay_ms,
+    })
+    if not ok then
+      last_send = {
+        ok = false,
+        err = err or "tmux send failed.",
+        pane = pane,
+        size = #text,
+      }
+      vim.notify(err or "tmux send failed.", vim.log.levels.ERROR)
+      return
+    end
 
-  local ok, err = tmux_client:send_text(pane, text, {
-    submit_key = config.submit_key,
-    submit_delay_ms = config.submit_delay_ms,
-  })
-  if not ok then
     last_send = {
-      ok = false,
-      err = err or "tmux send failed.",
+      ok = true,
+      err = nil,
       pane = pane,
       size = #text,
     }
-    vim.notify(err or "tmux send failed.", vim.log.levels.ERROR)
+  end
+
+  local pane, resolve_err = tmux_client:resolve_droid_pane()
+  if pane then
+    send_to_pane(pane)
     return
   end
 
-  last_send = {
-    ok = true,
-    err = nil,
-    pane = pane,
-    size = #text,
-  }
+  M.pick_pane("", function(picked)
+    if not picked then
+      local msg = resolve_err or "Could not resolve Droid pane."
+      last_send = {
+        ok = false,
+        err = msg,
+        pane = nil,
+        size = #text,
+      }
+      vim.notify(msg, vim.log.levels.ERROR)
+      return
+    end
+    send_to_pane(picked)
+  end)
 end
 
 function M.status()
@@ -303,6 +386,10 @@ function M.setup(opts)
     M.status()
   end, {})
 
+  create_user_command("DroidPickPane", function(c)
+    M.pick_pane(c.args)
+  end, { nargs = "?" })
+
   create_user_command("DroidAsk", function(c)
     M.ask(c.args)
   end, { nargs = "*" })
@@ -387,6 +474,10 @@ function M.setup(opts)
   map_key("n", km.quickfix, function()
     M.send_quickfix("")
   end, { desc = "Droid: send quickfix" })
+
+  map_key("n", km.pick_pane, function()
+    M.pick_pane("")
+  end, { desc = "Droid: pick pane" })
 
   map_key("n", km.ask, function()
     M.ask("")

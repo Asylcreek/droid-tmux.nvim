@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project uses Semantic Versioning.
 
+## [0.3.0] - 2026-02-15
+
+### Added
+- Restored `:DroidPickPane` command and added a default `pick_pane` keymap (`<leader>as`).
+- Added automatic pane picker fallback when `:DroidFocus` or `:DroidSend*` runs without a pinned pane.
+
+### Changed
+- Pane targeting now relies on explicit pane pinning only (auto-detection removed).
+- Persisted pane selection is now tmux window-scoped (`@droid_pane` with `-w`) instead of global.
+- Status reporting now reflects picked-pane resolution as the primary source.
+
+### Fixed
+- Stale pinned panes are now detected and cleared, with explicit re-pick guidance.
+- Send/focus flows now recover immediately by prompting pane selection when unresolved.
+
 ## [0.2.1] - 2026-02-13
 
 ### Fixed
