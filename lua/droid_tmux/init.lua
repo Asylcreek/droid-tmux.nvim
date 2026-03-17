@@ -445,13 +445,19 @@ function M.setup(opts)
       s, e = e, s
     end
     vim.ui.input({ prompt = "Droid (selection) > " }, function(input)
-      M.send_lines(s, e, input or "")
+      if input == nil then
+        return
+      end
+      M.send_lines(s, e, input)
     end)
   end, { desc = "Droid: send selected lines (optional message)" })
 
   map_key("n", km.line, function()
     vim.ui.input({ prompt = "Droid (line) > " }, function(input)
-      M.send_line(input or "")
+      if input == nil then
+        return
+      end
+      M.send_line(input)
     end)
   end, { desc = "Droid: send current line (optional message)" })
 
